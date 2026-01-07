@@ -1,105 +1,521 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Simulador de Espera</title>
-  <style>
-    body {
-      margin: 0;
-      height: 100vh;
-      background: linear-gradient(135deg, #2c2c2c, #000);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: Arial, sans-serif;
-      color: #fff;
-    }
-    .panel {
-      background: #111;
-      padding: 25px;
-      border-radius: 10px;
-      width: 340px;
-      text-align: center;
-      box-shadow: 0 0 20px #000;
-    }
-    .bar {
-      margin-top: 20px;
-      width: 100%;
-      height: 20px;
-      background: #333;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    .progress {
-      height: 100%;
-      width: 0%;
-      background: lime;
-      transition: width 0.2s;
-    }
-    button {
-      margin-top: 20px;
-      padding: 12px;
-      width: 100%;
-      border: none;
-      border-radius: 6px;
-      background: lime;
-      color: #000;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .msg {
-      margin-top: 15px;
-      min-height: 40px;
-      font-size: 14px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Tierra de Agaves | Biodiversidad Oaxaqueña Real</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- SISTEMA DE DISEÑO BIOCULTURAL --- */
+        :root {
+            /* MODO LLUVIAS (Vida y Verdor) */
+            --primary: #388E3C;
+            --accent: #FFD54F; /* Amarillo Flor de Maguey */
+            --bg-panel: rgba(10, 25, 10, 0.95);
+            --text-main: #F1F8E9;
+            --transition: all 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body.season-dry {
+            /* MODO SECAS (Resistencia y Tonos Ocre) */
+            --primary: #8D6E63;
+            --accent: #FF6F00;
+            --bg-panel: rgba(30, 20, 10, 0.98);
+            --text-main: #EFEBE9;
+        }
+
+        body { margin: 0; background: #000; font-family: 'Lato', sans-serif; overflow: hidden; height: 100vh; color: var(--text-main); transition: var(--transition); }
+
+        /* --- VIDEO SPLASH (INTRO) --- */
+        #splash {
+            position: fixed; inset: 0; z-index: 9999; background: #000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 1s;
+        }
+        /* Video de fondo: Paisaje de Agaves en Oaxaca */
+        .video-bg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.6;
+        }
+        .splash-content { position: relative; z-index: 2; text-align: center; padding: 20px; }
+        .splash-title { font-family: 'Cinzel'; font-size: 2.5rem; margin: 0; text-shadow: 0 4px 15px black; letter-spacing: 2px; }
+        .splash-sub { font-size: 0.9rem; letter-spacing: 3px; border-bottom: 2px solid var(--accent); display: inline-block; padding-bottom: 5px; margin-bottom: 30px; text-transform: uppercase; }
+        .btn-enter {
+            padding: 15px 50px; background: rgba(255,255,255,0.1); border: 1px solid white; color: white;
+            border-radius: 50px; font-family: 'Cinzel'; font-size: 1rem; cursor: pointer; backdrop-filter: blur(5px);
+            transition: 0.3s; box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+        .btn-enter:hover { background: var(--accent); color: black; border-color: var(--accent); }
+
+        /* --- MAPA --- */
+        #map { position: absolute; inset: 0; z-index: 1; transition: var(--transition); }
+        body.season-dry #map { filter: sepia(0.5) contrast(1.1) brightness(0.9); } 
+        .vignette { position: absolute; inset: 0; background: radial-gradient(circle, transparent 30%, black 100%); pointer-events: none; z-index: 2; }
+
+        /* --- HUD SUPERIOR --- */
+        .top-bar {
+            position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10;
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+        .season-switch {
+            background: var(--bg-panel); border: 1px solid var(--accent); padding: 8px 15px; border-radius: 25px;
+            display: flex; align-items: center; gap: 8px; font-size: 0.75rem; cursor: pointer; backdrop-filter: blur(10px);
+            transition: 0.3s;
+        }
+        .advc-badge {
+            text-align: right; background: var(--bg-panel); padding: 5px 15px; border-radius: 12px; border-right: 4px solid var(--primary);
+        }
+        .advc-num { font-family: 'Cinzel'; font-size: 1.2rem; font-weight: bold; color: var(--accent); display: block; }
+        .advc-lbl { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; }
+
+        /* --- TARJETA INFERIOR (BITÁCORA) --- */
+        .info-card {
+            position: absolute; bottom: 90px; left: 10px; right: 10px;
+            background: var(--bg-panel); border-top: 3px solid var(--accent);
+            border-radius: 20px; padding: 25px; z-index: 20;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            transform: translateY(120%); transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 60vh; overflow-y: auto; box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+        }
+        .info-card.active { transform: translateY(0); }
+
+        .loc-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        .loc-cat { color: var(--accent); font-size: 0.7rem; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+        .loc-title { font-family: 'Cinzel'; font-size: 1.6rem; margin: 0; line-height: 1.1; color: white; }
+        
+        /* Audio Player Visual */
+        .audio-player {
+            display: flex; align-items: center; gap: 15px; background: rgba(255,255,255,0.05);
+            padding: 12px; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .btn-play {
+            width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: black; border:none;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1rem;
+        }
+        .audio-wave { flex: 1; height: 25px; display: flex; align-items: center; gap: 3px; }
+        .bar { width: 4px; background: var(--primary); height: 20%; border-radius: 2px; opacity: 0.6; }
+        .audio-wave.playing .bar { animation: wave 0.8s infinite ease-in-out alternate; }
+        @keyframes wave { 100% { height: 100%; opacity: 1; } }
+
+        .loc-desc { font-size: 0.95rem; line-height: 1.6; color: #ddd; margin-bottom: 20px; border-left: 3px solid var(--primary); padding-left: 15px; }
+
+        /* Iconos de Estrategia */
+        .strat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 20px; }
+        .strat-item { text-align: center; opacity: 0.4; padding: 5px; background: rgba(255,255,255,0.05); border-radius: 5px; }
+        .strat-item.active { opacity: 1; border: 1px solid var(--accent); background: rgba(255,215,0,0.1); }
+        .strat-icon { font-size: 1.2rem; color: var(--accent); margin-bottom: 4px; display: block; }
+        .strat-lbl { font-size: 0.5rem; text-transform: uppercase; display: block; }
+
+        /* Botón Multimedia */
+        .btn-gallery {
+            width: 100%; padding: 12px; background: transparent; border: 1px solid #aaa; color: #ddd;
+            border-radius: 10px; font-size: 0.85rem; cursor: pointer; display: flex; justify-content: center; gap: 8px;
+            transition: 0.3s;
+        }
+        .btn-gallery:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* --- DOCK DE NAVEGACIÓN --- */
+        .nav-dock {
+            position: absolute; bottom: 20px; left: 15px; right: 15px;
+            height: 65px; background: #0a0a0a; border-radius: 35px; border: 1px solid #333;
+            display: flex; justify-content: space-between; align-items: center; padding: 0 10px; z-index: 30;
+            box-shadow: 0 5px 20px black;
+        }
+        .nav-btn { width: 45px; height: 45px; background: transparent; border: none; color: white; font-size: 1.2rem; cursor: pointer; }
+        .radar-btn {
+            background: linear-gradient(135deg, var(--primary), #1b5e20); color: white;
+            padding: 0 20px; height: 45px; border-radius: 25px; border: none; font-weight: bold; font-size: 0.8rem;
+            display: flex; align-items: center; gap: 8px; box-shadow: 0 0 15px var(--primary); cursor: pointer;
+        }
+        .radar-btn i { animation: spin 4s infinite linear; }
+        @keyframes spin { 100% {transform: rotate(360deg);} }
+
+        /* --- MODAL RADAR --- */
+        .radar-overlay {
+            position: fixed; inset: 0; background: rgba(0,15,0,0.96); z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: 0.3s;
+        }
+        .radar-overlay.active { opacity: 1; pointer-events: auto; }
+        .radar-scope {
+            width: 300px; height: 300px; border: 2px solid var(--primary); border-radius: 50%;
+            position: relative; background: radial-gradient(circle, rgba(46,125,50,0.2) 0%, transparent 70%);
+        }
+        .radar-sweep {
+            position: absolute; top: 50%; left: 50%; width: 50%; height: 2px; background: var(--accent);
+            transform-origin: 0 0; animation: sweep 2s infinite linear;
+        }
+        .radar-dot {
+            position: absolute; width: 10px; height: 10px; background: var(--accent); border-radius: 50%;
+            box-shadow: 0 0 15px var(--accent); animation: blink 1s infinite;
+        }
+        @keyframes sweep { 0% {transform: rotate(0deg);} 100% {transform: rotate(360deg);} }
+        @keyframes blink { 0%, 100% {opacity: 1;} 50% {opacity: 0;} }
+
+        /* --- MODAL GALERÍA --- */
+        .gallery-modal {
+            position: fixed; inset: 0; background: #000; z-index: 110;
+            transform: translateY(100%); transition: 0.4s ease-in-out; display: flex; flex-direction: column;
+        }
+        .gallery-modal.active { transform: translateY(0); }
+        .gallery-header { padding: 15px 20px; background: rgba(0,0,0,0.8); display: flex; justify-content: space-between; align-items: center; }
+        .gallery-body { flex: 1; overflow-y: auto; padding: 20px; }
+        .media-container { width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid #333; position: relative; margin-bottom: 25px; }
+        .media-img { width: 100%; display: block; }
+        .media-cap { font-size: 0.85rem; color: #ccc; margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--accent); font-style: italic; }
+
+    </style>
 </head>
 <body>
 
-<div class="panel">
-  <h2>Simulador de Espera</h2>
-  <p>Completa la barra para descubrir nada.</p>
+    <div id="splash">
+        <video class="video-bg" autoplay muted loop playsinline poster="https://live.staticflickr.com/65535/49626372833_8c07e20569_b.jpg">
+            <source src="https://player.vimeo.com/external/482635905.sd.mp4?s=d00427909307996522c079207e32906236306567&profile_id=165&oauth2_token_id=57447761" type="video/mp4">
+        </video>
+        <div class="splash-content">
+            <h1 class="splash-title">TIERRA DE<br>AGAVES</h1>
+            <div class="splash-sub">Naturaleza y Cultura</div>
+            <p style="color:#ddd; margin-bottom:30px;">Explora los Bosques Tropicales Secos de Oaxaca.</p>
+            <button class="btn-enter" onclick="startApp()">INICIAR RECORRIDO</button>
+        </div>
+    </div>
 
-  <div class="bar">
-    <div class="progress" id="progress"></div>
-  </div>
+    <div id="map"></div>
+    <div class="vignette"></div>
 
-  <button onclick="esperar()">Esperar</button>
-  <div class="msg" id="msg"></div>
-</div>
+    <div class="top-bar">
+        <div class="season-switch" onclick="toggleSeason()">
+            <i class="fas fa-cloud-sun-rain" id="seasonIcon"></i>
+            <span id="seasonText">Temporada de Lluvias</span>
+        </div>
+        <div class="advc-badge">
+            <span class="advc-num" id="haCounter">0</span>
+            <span class="advc-lbl">Hectáreas (ADVC)</span>
+        </div>
+    </div>
 
-<script>
-  let progreso = 0;
-  const mensajes = [
-    "Procesando absolutamente nada...",
-    "Aún esperando...",
-    "Casi listo (mentira)",
-    "El sistema piensa...",
-    "Tiempo desperdiciado con éxito",
-    "Esto no tiene sentido",
-    "Sigue esperando"
-  ];
+    <div class="info-card" id="card">
+        <div class="loc-header">
+            <div>
+                <span class="loc-cat" id="lCat">CATEGORÍA</span>
+                <h2 class="loc-title" id="lName">Nombre</h2>
+            </div>
+            <i class="fas fa-draw-polygon" style="color:var(--accent); font-size:2rem; opacity:0.8;"></i>
+        </div>
 
-  function esperar() {
-    if (progreso >= 100) {
-      document.getElementById("msg").textContent =
-        "Proceso finalizado. Resultado: nada.";
-      return;
-    }
+        <div class="audio-player">
+            <button class="btn-play" onclick="toggleAudio()"><i class="fas fa-play" id="audioIcon"></i></button>
+            <div style="flex:1;">
+                <div style="font-size:0.65rem; color:var(--accent); font-weight:bold;">HISTORIA ORAL</div>
+                <div style="font-size:0.85rem;" id="lAudio">Título Audio</div>
+            </div>
+            <div class="audio-wave" id="audioViz">
+                <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            </div>
+        </div>
 
-    const avance = Math.floor(Math.random() * 15) + 1;
-    progreso = Math.min(100, progreso + avance);
-    document.getElementById("progress").style.width = progreso + "%";
+        <p class="loc-desc" id="lDesc">Descripción del lugar y su importancia ecológica.</p>
 
-    const msg = mensajes[Math.floor(Math.random() * mensajes.length)];
-    document.getElementById("msg").textContent = msg;
+        <div style="font-size:0.7rem; color:#aaa; margin-bottom:5px; text-transform:uppercase;">Estrategia Territorial:</div>
+        <div class="strat-grid">
+            <div class="strat-item" id="st-conserve"><i class="fas fa-shield-alt strat-icon"></i><span class="strat-lbl">Conservar</span></div>
+            <div class="strat-item" id="st-restore"><i class="fas fa-seedling strat-icon"></i><span class="strat-lbl">Restaurar</span></div>
+            <div class="strat-item" id="st-poly"><i class="fas fa-random strat-icon"></i><span class="strat-lbl">Policultivo</span></div>
+            <div class="strat-item" id="st-sus"><i class="fas fa-recycle strat-icon"></i><span class="strat-lbl">Sostenible</span></div>
+        </div>
 
-    if (progreso === 100) {
-      document.getElementById("msg").textContent =
-        "Listo ✔ Has esperado para nada.";
-    }
-  }
-</script>
+        <button class="btn-gallery" onclick="openGallery()">
+            <i class="fas fa-camera"></i> Ver Evidencia de Monitoreo
+        </button>
+    </div>
 
+    <div class="nav-dock">
+        <button class="nav-btn" onclick="prevPoint()"><i class="fas fa-chevron-left"></i></button>
+        <button class="radar-btn" onclick="openRadar()">
+            <i class="fas fa-satellite-dish"></i> RADAR BIO
+        </button>
+        <button class="nav-btn" onclick="nextPoint()"><i class="fas fa-chevron-right"></i></button>
+    </div>
+
+    <div class="radar-overlay" id="radarModal">
+        <div class="radar-scope">
+            <div class="radar-sweep"></div>
+            <div class="radar-dot" style="top:30%; left:60%;"></div>
+            <div class="radar-dot" style="top:70%; left:40%; animation-delay:0.5s;"></div>
+        </div>
+        <h2 style="font-family:'Cinzel'; color:white; margin-top:20px;" id="radarStatus">ESCANENDO BTS...</h2>
+        <p style="color:var(--primary); font-size:0.9rem;" id="radarResult">Buscando indicadores...</p>
+        <button class="btn-enter" style="margin-top:20px; font-size:0.8rem; border-color:white; color:white;" onclick="closeRadar()">CERRAR REPORTE</button>
+    </div>
+
+    <div class="gallery-modal" id="galleryModal">
+        <div class="gallery-header">
+            <span style="font-family:'Cinzel'; color:var(--accent);">REGISTRO VISUAL</span>
+            <i class="fas fa-times" style="font-size:1.5rem; color:white;" onclick="closeGallery()"></i>
+        </div>
+        <div class="gallery-body" id="galleryContent">
+            </div>
+    </div>
+
+    <script>
+        // --- 1. BASE DE DATOS CURADA (Fauna y Flora Real de Oaxaca) ---
+        const locations = [
+            {
+                name: "Sta. María Zoquitlán", category: "NÚCLEO ADVC",
+                coords: [16.565, -96.355],
+                desc: "Zona de conservación de Selva Baja Caducifolia. Hogar del Agave Tobalá y depredadores clave como el Jaguar.",
+                audio: "El Rugido del Monte",
+                pillars: {conserve: true, restore: true, poly: false, sus: false},
+                species: "Jaguar (Panthera onca)",
+                media: [
+                    {type:'img', src:'https://upload.wikimedia.org/wikipedia/commons/0/0a/Standing_jaguar.jpg', cap:'Jaguar captado en zonas remotas de conservación.'},
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/6325902/large.jpg', cap:'Agave Potatorum (Tobalá) silvestre en su hábitat rocoso.'}
+                ]
+            },
+            {
+                name: "Chontecomatlán", category: "RESTAURACIÓN",
+                coords: [16.355, -95.885],
+                desc: "Recuperación de suelos en la Sierra Sur. Reforestación con especies nativas para proteger el hábitat del Venado.",
+                audio: "Sembrando Agua",
+                pillars: {conserve: true, restore: true, poly: false, sus: false},
+                species: "Venado Cola Blanca",
+                media: [
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/27986705/original.jpg', cap:'Venado Cola Blanca, especie indicadora de salud del ecosistema.'},
+                    {type:'img', src:'https://live.staticflickr.com/4313/35367503764_9273c09033_b.jpg', cap:'Paisaje de matorral xerófilo en recuperación.'}
+                ]
+            },
+            {
+                name: "San Juan Lechigalla", category: "POLICULTIVO",
+                coords: [16.635, -96.155],
+                desc: "Agroforestería tradicional. El Agave Espadín convive con maíz, frijol y árboles de Huizache.",
+                audio: "La Milpa Diversa",
+                pillars: {conserve: false, restore: true, poly: true, sus: true},
+                species: "Polinizadores (Abejas)",
+                media: [
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/10972757/original.jpg', cap:'Cultivo de Agave Espadín (A. angustifolia).'},
+                    {type:'img', src:'https://upload.wikimedia.org/wikipedia/commons/9/90/Acacia_farnesiana_flowers.jpg', cap:'Flor de Huizache, vital para polinizadores en los valles.'}
+                ]
+            },
+            {
+                name: "San Antonio Chiguivana", category: "CORREDOR BIO",
+                coords: [16.505, -96.055],
+                desc: "Hábitat del Agave Tepeztate. Protección de murciélagos mediante la conservación de quiotes.",
+                audio: "Vuelo Nocturno",
+                pillars: {conserve: true, restore: false, poly: true, sus: true},
+                species: "Murciélago Magueyero",
+                media: [
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/5607373/original.jpg', cap:'Agave Marmorata (Tepeztate) creciendo en acantilados.'},
+                    {type:'img', src:'https://upload.wikimedia.org/wikipedia/commons/3/30/Leptonycteris_yerbabuenae_NPS.jpg', cap:'Murciélago magueyero menor polinizando.'}
+                ]
+            },
+            {
+                name: "Santo Tomás Teipan", category: "GOBERNANZA",
+                coords: [16.282, -95.955],
+                desc: "Territorio Chontal. Fauna silvestre como el Coatí (Tejón) protegida por acuerdos comunitarios.",
+                audio: "La Voz de la Asamblea",
+                pillars: {conserve: true, restore: false, poly: false, sus: true},
+                species: "Tejón (Coatí)",
+                media: [
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/16381026/original.jpg', cap:'Coatí (Nasua narica), conocido localmente como Tejón.'},
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/12398579/original.jpg', cap:'Vegetación de Selva Baja durante la época de lluvias.'}
+                ]
+            },
+            {
+                name: "San Bartolo Yautepec", category: "PRODUCCIÓN LIMPIA",
+                coords: [16.450, -96.000],
+                desc: "Protección del Río Yautepec. Iguanas y fauna ribereña conviven con la producción mezcalera.",
+                audio: "Río Sano",
+                pillars: {conserve: false, restore: false, poly: false, sus: true},
+                species: "Iguana Negra",
+                media: [
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/59596636/original.jpg', cap:'Iguana Negra (Ctenosaura pectinata), especie protegida.'},
+                    {type:'img', src:'https://upload.wikimedia.org/wikipedia/commons/9/9c/Rio_Yautepec.jpg', cap:'Ribera del Río Yautepec.'}
+                ]
+            },
+            {
+                name: "S. Bartolomé Quialana", category: "CULTURA Y GÉNERO",
+                coords: [16.905, -96.505],
+                desc: "Conocimiento ancestral. Uso de plantas como el Cempasúchil silvestre y conservación de semillas.",
+                audio: "Sabiduría Femenina",
+                pillars: {conserve: true, restore: true, poly: true, sus: true},
+                species: "Cempasúchil Silvestre",
+                media: [
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/56723223/original.jpg', cap:'Tagetes erecta (Cempasúchil) en estado silvestre.'},
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/33588972/original.jpg', cap:'Paisaje de los Valles Centrales al pie de la montaña.'}
+                ]
+            },
+            {
+                name: "Santa María El Tule", category: "SÍMBOLO",
+                coords: [17.045, -96.630],
+                desc: "El gran Ahuehuete (Sabino). Un humedal histórico que alberga aves como la Garza Blanca.",
+                audio: "El Abuelo Árbol",
+                pillars: {conserve: true, restore: false, poly: false, sus: false},
+                species: "Garza Blanca",
+                media: [
+                    {type:'img', src:'https://upload.wikimedia.org/wikipedia/commons/a/a2/El_Tule_Oaxaca.jpg', cap:'El Árbol del Tule: Taxodium mucronatum milenario.'},
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/3335757/original.jpg', cap:'Garza Blanca en los humedales de los Valles.'}
+                ]
+            },
+            {
+                name: "San Amatlán", category: "MONITOREO",
+                coords: [16.325, -96.485],
+                desc: "Fototrampeo comunitario. Registro de fauna esquiva como el Pecarí de Collar en el monte bajo.",
+                audio: "Ojos del Monte",
+                pillars: {conserve: true, restore: true, poly: false, sus: true},
+                species: "Pecarí de Collar",
+                media: [
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/7382206/original.jpg', cap:'Pecarí de Collar (Pecari tajacu) en su hábitat.'},
+                    {type:'img', src:'https://inaturalist-open-data.s3.amazonaws.com/photos/11186780/original.jpg', cap:'Vegetación espinosa típica del Bosque Tropical Seco.'}
+                ]
+            }
+        ];
+
+        // --- 2. CONFIGURACIÓN MAPA ---
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([16.8, -96.5], 9);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 }).addTo(map);
+
+        // --- 3. LÓGICA DE INTERACCIÓN ---
+        let currentIndex = 0;
+        let isDrySeason = false;
+        let isPlaying = false;
+
+        function startApp() {
+            document.getElementById('splash').style.opacity = 0;
+            setTimeout(() => { document.getElementById('splash').style.display = 'none'; }, 1000);
+            updateLocation(0);
+            animateHectares();
+        }
+
+        function updateLocation(index) {
+            currentIndex = index;
+            const data = locations[index];
+            
+            // Mapa Vuelo
+            map.flyTo(data.coords, 13, { duration: 2 });
+
+            // Textos
+            document.getElementById('lCat').innerText = data.category;
+            document.getElementById('lName').innerText = data.name;
+            document.getElementById('lDesc').innerText = data.desc;
+            document.getElementById('lAudio').innerText = data.audio;
+
+            // Pilares Estratégicos
+            updatePillar('st-conserve', data.pillars.conserve);
+            updatePillar('st-restore', data.pillars.restore);
+            updatePillar('st-poly', data.pillars.poly);
+            updatePillar('st-sus', data.pillars.sus);
+
+            // Cargar Galería
+            const gal = document.getElementById('galleryContent');
+            gal.innerHTML = '';
+            data.media.forEach(m => {
+                gal.innerHTML += `
+                    <div class="media-container">
+                        <img src="${m.src}" class="media-img">
+                        <div class="media-cap">${m.cap}</div>
+                    </div>`;
+            });
+
+            // Mostrar Tarjeta
+            document.getElementById('card').classList.add('active');
+            stopAudio();
+        }
+
+        function updatePillar(id, isActive) {
+            const el = document.getElementById(id);
+            if(isActive) el.classList.add('active');
+            else el.classList.remove('active');
+        }
+
+        function toggleSeason() {
+            isDrySeason = !isDrySeason;
+            const body = document.body;
+            const icon = document.getElementById('seasonIcon');
+            const txt = document.getElementById('seasonText');
+            if(isDrySeason) {
+                body.classList.add('season-dry');
+                icon.className = 'fas fa-sun';
+                txt.innerText = "Secas (Resistencia)";
+            } else {
+                body.classList.remove('season-dry');
+                icon.className = 'fas fa-cloud-sun-rain';
+                txt.innerText = "Lluvias (Vida)";
+            }
+        }
+
+        function openRadar() {
+            document.getElementById('radarModal').classList.add('active');
+            const status = document.getElementById('radarStatus');
+            const res = document.getElementById('radarResult');
+            const data = locations[currentIndex];
+
+            status.innerText = "ESCANENDO...";
+            res.innerText = "Buscando indicadores biológicos...";
+
+            setTimeout(() => {
+                status.innerText = "¡DETECTADO!";
+                status.style.color = "var(--accent)";
+                res.innerText = `Especie clave: ${data.species}`;
+            }, 2500);
+        }
+
+        function closeRadar() { document.getElementById('radarModal').classList.remove('active'); }
+        function openGallery() { document.getElementById('galleryModal').classList.add('active'); }
+        function closeGallery() { document.getElementById('galleryModal').classList.remove('active'); }
+
+        function toggleAudio() {
+            isPlaying = !isPlaying;
+            const icon = document.getElementById('audioIcon');
+            const viz = document.getElementById('audioViz');
+            if(isPlaying) {
+                icon.className = 'fas fa-pause';
+                viz.classList.add('playing');
+            } else {
+                icon.className = 'fas fa-play';
+                viz.classList.remove('playing');
+            }
+        }
+        function stopAudio() {
+            isPlaying = false;
+            document.getElementById('audioIcon').className = 'fas fa-play';
+            document.getElementById('audioViz').classList.remove('playing');
+        }
+
+        function animateHectares() {
+            let count = 0;
+            const target = 9000;
+            const el = document.getElementById('haCounter');
+            const int = setInterval(() => {
+                count += 150;
+                el.innerText = count.toLocaleString();
+                if(count >= target) clearInterval(int);
+            }, 30);
+        }
+
+        function nextPoint() {
+            let n = currentIndex + 1 >= locations.length ? 0 : currentIndex + 1;
+            updateLocation(n);
+        }
+        function prevPoint() {
+            let n = currentIndex - 1 < 0 ? locations.length - 1 : currentIndex - 1;
+            updateLocation(n);
+        }
+
+        // Marcadores
+        locations.forEach((loc, idx) => {
+            const icon = L.divIcon({
+                className: 'pin',
+                html: `<div style="width:16px; height:16px; background:var(--accent); border-radius:50%; box-shadow:0 0 15px black; border:2px solid white;"></div>`
+            });
+            L.marker(loc.coords, {icon: icon}).addTo(map).on('click', () => updateLocation(idx));
+        });
+
+    </script>
 </body>
 </html>
